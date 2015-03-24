@@ -8,21 +8,28 @@ Usage:
     ./recommend.py train <training_data_file> [--partitions=<n>]
                    [--ranks=<n>] [--lambdas=<n>] [--iterations=<n>]
     ./recommend.py recommend <training_data_file> <movies_meta_data>
-                   [--ratings=<n>]
+                   [--ratings=<n>] [--partitions=<n>] [--rank=<n>]
+                   [--iteration=<n>] [--lambda=<n>]
     ./recommend.py metrics <training_data_file> <movies_meta_data>
     ./recommend.py (-h | --help)
 
 Options:
     -h, --help         Show this screen and exit.
     --partitions=<n>   Partition count [Default: 4]
-    --ranks=<n>        Partition count [Default: 6,8,12]
-    --lambdas=<n>      Partition count [Default: 0.1,1.0,10.0]
-    --iterations=<n>   Partition count [Default: 10,20]
+    --ranks=<n>        List of ranks [Default: 6,8,12]
+    --lambdas=<n>      List of lambdas [Default: 0.1,1.0,10.0]
+    --iterations=<n>   List of iterations [Default: 10,20]
+
     --ratings=<n>      Ratings for 5 popular films [Default: 5,4,5,5,5]
+    --rank=<n>        Rank value [Default: 12]
+    --lambda=<n>      Lambda value [Default: 0.1]
+    --iteration=<n>   Iteration value [Default: 20]
 
 Examples:
-    bin/spark-submit --driver-memory 2g recommend.py train ratings.dat
+    bin/spark-submit recommend.py train ratings.dat
     bin/spark-submit recommend.py metrics ratings.dat movies.dat
+    bin/spark-submit --driver-memory 2g \
+        recommend.py recommend ratings.dat movies.dat
 
 Credits:
 
@@ -140,7 +147,7 @@ def metrics(training_data_file, movies_meta_data):
         print '{:10,} #{} {}'.format(ratings, movie_id, movies[movie_id])
 
 
-def train(training_data_file, numPartitions, ranks, lambdas, numIters):
+def train(training_data_file, numPartitions, ranks, lambdas, iterations):
     """
     Print metrics for the ratings database
     
@@ -148,7 +155,7 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
     :param int numPartitions: number of partitions
     :param list ranks: list of ranks to use
     :param list lambdas: list of lambdas to use
-    :param list numIters: list of iteration counts
+    :param list iterations: list of iteration counts
     """
     # The training file with all the rating is loaded as a spark Resilient 
     # Distributed Dataset (RDD), and the parse_rating method is applied to
@@ -207,7 +214,7 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
         # that can be used to predict missing entries. In particular, we 
         # implement the alternating least squares (ALS) algorithm to learn 
         # these latent factors.
-        for rank, lmbda, numIter in itertools.product(ranks, lambdas, numIters):
+        for rank, lmbda, numIter in itertools.product(ranks, lambdas, iterations):
             model = ALS.train(ratings=training,
                               rank=rank,
                               iterations=numIter,
@@ -246,6 +253,11 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
     :param str training_data_file: file location of ratings.dat
     :param str movies_meta_data: file location of movies.dat
     :param list user_ratings: list of floats of ratings for 5 popular films
+
+    :param int numPartitions: number of partitions
+    :param int rank: rank amount
+    :param int iterations: iterations count
+    :param float lmbda: lambda amount
     """
     # Collect the users ratings of 5 popular films
     my_ratings = (
@@ -285,22 +297,22 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
                             .cache()
 
         predictions = model.predictAll(candidates).collect()
-        # TODO Returning an empty list instead of predictions
 
+        # Get the top 50 recommendations
         recommendations = sorted(predictions,
                                  key=lambda x: x[2],
                                  reverse=True)[:50]
 
-    print 'candidates', candidates
-    print 'predictions', predictions
-    print 'recommendations', recommendations
-
+    # Map each film id and name to a key, value dictionary
     movies = {}
 
     with open(movies_meta_data, 'r') as open_file:
         movies = {int(line.split('::')[0]): line.split('::')[1]
                   for line in open_file
                   if len(line.split('::')) == 3}
+
+    for movie_id, _, _ in recommendations:
+        print movies[movie_id]
 
 
 def main(argv):
@@ -312,13 +324,13 @@ def main(argv):
     if opt['train']:
         ranks    = [int(rank)      for rank in opt['--ranks'].split(',')]
         lambdas  = [float(_lambda) for _lambda in opt['--lambdas'].split(',')]
-        numIters = [int(_iter)     for _iter in opt['--iterations'].split(',')]
+        iterations = [int(_iter)     for _iter in opt['--iterations'].split(',')]
 
         train(opt['<training_data_file>'],
               int(opt['--partitions']),
               ranks,
               lambdas,
-              numIters)
+              iterations)
 
     if opt['metrics']:
         metrics(opt['<training_data_file>'],
@@ -326,10 +338,13 @@ def main(argv):
 
     if opt['recommend']:
         ratings = [float(_rating) for _rating in opt['--ratings'].split(',')]
-
-        recommend(opt['<training_data_file>'],
-                  opt['<movies_meta_data>'],
-                  ratings)
+        recommend(training_data_file=opt['<training_data_file>'],
+                  movies_meta_data=opt['<movies_meta_data>'],
+                  user_ratings=ratings,
+                  numPartitions=int(opt['--partitions']),
+                  rank=int(opt['--rank']),
+                  iterations=int(opt['--iteration']),
+                  lmbda=float(opt['--lambda']))
 
 
 if __name__ == "__main__":

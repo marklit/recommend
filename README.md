@@ -29,7 +29,11 @@ unzip -j ml-1m.zip
 
 # Example outputs
 
-Default settings:
+## Training
+
+```bash
+$ bin/spark-submit recommend.py train ratings.dat`
+```
 
 ```
 Ratings:      1,000,209
@@ -47,7 +51,10 @@ The best model was trained with:
     RMSE on test set:   0.869235
 ```
 
-With `--ranks=8,9,10 --lambdas=0.31,0.32,0.33 --iterations=3`:
+```bash
+$ bin/spark-submit recommend.py train ratings.dat \
+    --ranks=8,9,10 --lambdas=0.31,0.32,0.33 --iterations=3`
+```
 
 ```
 The best model was trained with:
@@ -57,7 +64,10 @@ The best model was trained with:
     RMSE on test set:   0.931992
 ```
 
-With `--ranks=5,10,15,20 --lambdas=0.33,0.5,0.8,0.9 --iterations=3,6,9`:
+```bash
+$ bin/spark-submit recommend.py train ratings.dat \
+    --ranks=5,10,15,20 --lambdas=0.33,0.5,0.8,0.9 --iterations=3,6,9`
+```
 
 ```
 The best model was trained with:
@@ -65,4 +75,25 @@ The best model was trained with:
     Lambda:             0.330000
     Iterations:                3
     RMSE on test set:   0.939317
+```
+
+## Recommending
+
+```bash
+$ bin/spark-submit recommend.py recommend ratings.dat movies.dat
+```
+
+```
+His Girl Friday (1940)
+New Jersey Drive (1995)
+Breakfast at Tiffany's (1961)
+Halloween 5: The Revenge of Michael Myers (1989)
+Just the Ticket (1999)
+I'll Be Home For Christmas (1998)
+Goya in Bordeaux (Goya en Bodeos) (1999)
+For the Moment (1994)
+Thomas and the Magic Railroad (2000)
+Message in a Bottle (1999)
+Light of Day (1987)
+...
 ```
