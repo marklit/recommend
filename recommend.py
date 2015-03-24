@@ -237,7 +237,7 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
 
 def recommend(training_data_file, movies_meta_data, user_ratings):
     """
-    Print metrics for the ratings database
+    Recommend films to the user based on their ratings of 5 popular films
     
     :param str training_data_file: file location of ratings.dat
     :param str movies_meta_data: file location of movies.dat
