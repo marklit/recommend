@@ -5,7 +5,7 @@ On Ubuntu 14.04.2:
 ```bash
 sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
-sudo apt-get install -yq oracle-java7-installer scala git python-virtualenv python-dev
+sudo apt-get install -yq oracle-java7-installer scala git python-virtualenv python-dev unzip
 ```
 
 ```bash
