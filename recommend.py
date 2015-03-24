@@ -265,27 +265,29 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
                           .values() \
                           .repartition(numPartitions) \
                           .cache()
+
         model = ALS.train(training, rank, iterations, lmbda)
 
-
-
         films_rdd = context.textFile(training_data_file) \
-                         .filter(lambda x: x and len(x.split('::')) == 4) \
-                         .map(parse_rating)
+                           .filter(lambda x: x and len(x.split('::')) == 4) \
+                           .map(parse_rating)
 
         films = films_rdd.values() \
-                            .map(lambda r: (r[1], 1)) \
-                            .reduceByKey(add) \
-                            .map(lambda r: r[0]) \
-                            .filter(lambda r: r not in films_seen) \
-                            .collect()
+                         .map(lambda r: (r[1], 1)) \
+                         .reduceByKey(add) \
+                         .map(lambda r: r[0]) \
+                         .filter(lambda r: r not in films_seen) \
+                         .collect()
 
         candidates = context.parallelize(films) \
+                            .map(lambda x: (0, x)) \
                             .repartition(numPartitions) \
                             .cache()
+        # candidates  = MapPartitionsRDD[410] at repartition at 
+        # NativeMethodAccessorImpl.java:-2
 
-        predictions = model.predictAll(candidates.map(lambda x: (0, x))) \
-                           .collect()
+        predictions = model.predictAll(candidates).collect()
+        # TODO Returning an empty list instead of predictions
 
         recommendations = sorted(predictions,
                                  key=lambda x: x[2],
