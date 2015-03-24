@@ -32,7 +32,7 @@ unzip -j ml-1m.zip
 ## Training
 
 ```bash
-$ bin/spark-submit recommend.py train ratings.dat`
+$ bin/spark-submit recommend.py train ratings.dat
 ```
 
 ```
@@ -53,7 +53,7 @@ The best model was trained with:
 
 ```bash
 $ bin/spark-submit recommend.py train ratings.dat \
-    --ranks=8,9,10 --lambdas=0.31,0.32,0.33 --iterations=3`
+    --ranks=8,9,10 --lambdas=0.31,0.32,0.33 --iterations=3
 ```
 
 ```
@@ -66,7 +66,7 @@ The best model was trained with:
 
 ```bash
 $ bin/spark-submit recommend.py train ratings.dat \
-    --ranks=5,10,15,20 --lambdas=0.33,0.5,0.8,0.9 --iterations=3,6,9`
+    --ranks=5,10,15,20 --lambdas=0.33,0.5,0.8,0.9 --iterations=3,6,9
 ```
 
 ```
