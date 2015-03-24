@@ -20,6 +20,13 @@ git clone https://github.com/marklit/recommend.git .
 pip install -r requirements.txt
 ```
 
+# Film ratings data
+
+```bash
+curl -O http://files.grouplens.org/papers/ml-1m.zip
+unzip -j ml-1m.zip
+```
+
 # Example outputs
 
 Default settings:
