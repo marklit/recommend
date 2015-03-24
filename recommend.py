@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 """
 Collaborative Filtering ALS Recommender System using Spark MLlib adapted from
 the Spark Summit 2014 Recommender System training example.
@@ -36,6 +35,7 @@ Credits:
         http://ampcamp.berkeley.edu/big-data-mini-course/movie-recommendation-with-mllib.html
         http://ampcamp.berkeley.edu/5/exercises/movie-recommendation-with-mllib.html
 """
+
 import contextlib
 import itertools
 from math import sqrt
@@ -194,18 +194,19 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
         # and two different numbers of iterations (10, 20). We will use
         # compute_rmse to compute the RMSE (Root Mean Squared Error) on the
         # validation set for each model. The model with the smallest RMSE on the
-        # validation set becomes the one selected and its RMSE on the test set is
-        # used as the final metric.
+        # validation set becomes the one selected and its RMSE on the test set
+        # is used as the final metric.
         bestValidationRmse = float("inf")
         bestModel, bestRank, bestLambda, bestNumIter = None, 0, -1.0, -1
 
-        # Collaborative filtering is commonly used for recommender systems. These 
-        # techniques aim to fill in the missing entries of a user-item association
-        # matrix, in our case, the user-movie rating matrix. MLlib currently
-        # supports model-based collaborative filtering, in which users and products
-        # are described by a small set of latent factors that can be used to
-        # predict missing entries. In particular, we implement the alternating 
-        # least squares (ALS) algorithm to learn these latent factors.
+        # Collaborative filtering is commonly used for recommender systems.
+        # These techniques aim to fill in the missing entries of a user-item 
+        # association matrix, in our case, the user-movie rating matrix. MLlib 
+        # currently supports model-based collaborative filtering, in which 
+        # users and products are described by a small set of latent factors 
+        # that can be used to predict missing entries. In particular, we 
+        # implement the alternating least squares (ALS) algorithm to learn 
+        # these latent factors.
         for rank, lmbda, numIter in itertools.product(ranks, lambdas, numIters):
             model = ALS.train(ratings=training,
                               rank=rank,
