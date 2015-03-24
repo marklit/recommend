@@ -246,7 +246,7 @@ def train(training_data_file, numPartitions, ranks, lambdas, iterations):
 
 
 def recommend(training_data_file, movies_meta_data, user_ratings,
-              numPartitions=4, rank=12, iterations=20, lmbda=0.1):
+              numPartitions, rank, iterations, _lambda):
     """
     Recommend films to the user based on their ratings of 5 popular films
     
@@ -257,7 +257,7 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
     :param int numPartitions: number of partitions
     :param int rank: rank amount
     :param int iterations: iterations count
-    :param float lmbda: lambda amount
+    :param float _lambda: lambda amount
     """
     # Collect the users ratings of 5 popular films
     my_ratings = (
@@ -278,7 +278,7 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
                           .repartition(numPartitions) \
                           .cache()
 
-        model = ALS.train(training, rank, iterations, lmbda)
+        model = ALS.train(training, rank, iterations, _lambda)
 
         films_rdd = context.textFile(training_data_file) \
                            .filter(lambda x: x and len(x.split('::')) == 4) \
@@ -312,7 +312,7 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
                   if len(line.split('::')) == 3}
 
     for movie_id, _, _ in recommendations:
-        print movies[movie_id]
+        print movies[movie_id] if movie_id in movies else movie_id
 
 
 def main(argv):
@@ -344,7 +344,7 @@ def main(argv):
                   numPartitions=int(opt['--partitions']),
                   rank=int(opt['--rank']),
                   iterations=int(opt['--iteration']),
-                  lmbda=float(opt['--lambda']))
+                  _lambda=float(opt['--lambda']))
 
 
 if __name__ == "__main__":
