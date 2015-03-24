@@ -214,7 +214,9 @@ def train(training_data_file, numPartitions, ranks, lambdas, iterations):
         # that can be used to predict missing entries. In particular, we 
         # implement the alternating least squares (ALS) algorithm to learn 
         # these latent factors.
-        for rank, lmbda, numIter in itertools.product(ranks, lambdas, iterations):
+        for rank, lmbda, numIter in itertools.product(ranks,
+                                                      lambdas,
+                                                      iterations):
             model = ALS.train(ratings=training,
                               rank=rank,
                               iterations=numIter,
@@ -324,7 +326,7 @@ def main(argv):
     if opt['train']:
         ranks    = [int(rank)      for rank in opt['--ranks'].split(',')]
         lambdas  = [float(_lambda) for _lambda in opt['--lambdas'].split(',')]
-        iterations = [int(_iter)     for _iter in opt['--iterations'].split(',')]
+        iterations = [int(_iter)   for _iter in opt['--iterations'].split(',')]
 
         train(opt['<training_data_file>'],
               int(opt['--partitions']),
