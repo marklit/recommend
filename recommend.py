@@ -280,11 +280,9 @@ def recommend(training_data_file, movies_meta_data, user_ratings,
                          .collect()
 
         candidates = context.parallelize(films) \
-                            .map(lambda x: (0, x)) \
+                            .map(lambda x: (x, 1)) \
                             .repartition(numPartitions) \
                             .cache()
-        # candidates  = MapPartitionsRDD[410] at repartition at 
-        # NativeMethodAccessorImpl.java:-2
 
         predictions = model.predictAll(candidates).collect()
         # TODO Returning an empty list instead of predictions
