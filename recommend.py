@@ -238,7 +238,8 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
     print '    RMSE on test set: {:10,.6f}'.format(testRmse)
 
 
-def recommend(training_data_file, movies_meta_data, user_ratings):
+def recommend(training_data_file, movies_meta_data, user_ratings,
+              numPartitions=4, rank=12, iterations=20, lmbda=0.1):
     """
     Recommend films to the user based on their ratings of 5 popular films
     
@@ -255,12 +256,44 @@ def recommend(training_data_file, movies_meta_data, user_ratings):
         (0, 1270, user_ratings[4]), # Back to the Future (1985)
     )
 
-    with spark_manager() as context:
-        my_ratings_rdd = context.parallelize(my_ratings, 1)
+    films_seen = set([_rating[1] for _rating in my_ratings])
 
-        ratings = context.textFile(training_data_file) \
+    with spark_manager() as context:
+        training = context.textFile(training_data_file) \
+                          .filter(lambda x: x and len(x.split('::')) == 4) \
+                          .map(parse_rating) \
+                          .values() \
+                          .repartition(numPartitions) \
+                          .cache()
+        model = ALS.train(training, rank, iterations, lmbda)
+
+
+
+        films_rdd = context.textFile(training_data_file) \
                          .filter(lambda x: x and len(x.split('::')) == 4) \
                          .map(parse_rating)
+
+        films = films_rdd.values() \
+                            .map(lambda r: (r[1], 1)) \
+                            .reduceByKey(add) \
+                            .map(lambda r: r[0]) \
+                            .filter(lambda r: r not in films_seen) \
+                            .collect()
+
+        candidates = context.parallelize(films) \
+                            .repartition(numPartitions) \
+                            .cache()
+
+        predictions = model.predictAll(candidates.map(lambda x: (0, x))) \
+                           .collect()
+
+        recommendations = sorted(predictions,
+                                 key=lambda x: x[2],
+                                 reverse=True)[:50]
+
+    print 'candidates', candidates
+    print 'predictions', predictions
+    print 'recommendations', recommendations
 
     movies = {}
 
