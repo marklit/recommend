@@ -36,7 +36,7 @@ Credits:
         http://ampcamp.berkeley.edu/big-data-mini-course/movie-recommendation-with-mllib.html
         http://ampcamp.berkeley.edu/5/exercises/movie-recommendation-with-mllib.html
 """
-
+import contextlib
 import itertools
 from math import sqrt
 from operator import add
@@ -50,6 +50,19 @@ from pyspark.mllib.recommendation import ALS
 SPARK_EXECUTOR_MEMORY = '2g'
 SPARK_APP_NAME = 'movieRecommender'
 SPARK_MASTER = 'local'
+
+
+@contextlib.contextmanager
+def spark_manager():
+    conf = SparkConf().setMaster(SPARK_MASTER) \
+                      .setAppName(SPARK_APP_NAME) \
+                      .set("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
+    spark_context = SparkContext(conf=conf)
+
+    try:
+        yield spark_context
+    finally:
+        spark_context.stop()
 
 
 def parse_rating(line):
@@ -96,11 +109,6 @@ def metrics(training_data_file, movies_meta_data):
     :param str training_data_file: file location of ratings.dat
     :param str movies_meta_data: file location of movies.dat
     """
-    conf = SparkConf().setMaster(SPARK_MASTER) \
-                      .setAppName(SPARK_APP_NAME) \
-                      .set("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
-    spark_context = SparkContext(conf=conf)
-
     movies = {}
 
     with open(movies_meta_data, 'r') as open_file:
@@ -108,22 +116,22 @@ def metrics(training_data_file, movies_meta_data):
                   for line in open_file
                   if len(line.split('::')) == 3}
 
+
     # The training file with all the rating is loaded as a spark Resilient 
     # Distributed Dataset (RDD), and the parse_rating method is applied to
     # each line that has been read from the file. RDD is a fault-tolerant 
     # collection of elements that can be operated on in parallel.
-    ratings = spark_context.textFile(training_data_file) \
-                           .filter(lambda x: x and len(x.split('::')) == 4) \
-                           .map(parse_rating)
+    with spark_manager() as context:
+        ratings = context.textFile(training_data_file) \
+                         .filter(lambda x: x and len(x.split('::')) == 4) \
+                         .map(parse_rating)
 
-    most_rated = ratings.values() \
-                        .map(lambda r: (r[1], 1)) \
-                        .reduceByKey(add) \
-                        .map(lambda r: (r[1], r[0])) \
-                        .sortByKey(ascending=False) \
-                        .collect()[:10]
-
-    spark_context.stop()
+        most_rated = ratings.values() \
+                            .map(lambda r: (r[1], 1)) \
+                            .reduceByKey(add) \
+                            .map(lambda r: (r[1], r[0])) \
+                            .sortByKey(ascending=False) \
+                            .collect()[:10]
 
     print
     print '10 most rated films:'
@@ -142,82 +150,76 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
     :param list lambdas: list of lambdas to use
     :param list numIters: list of iteration counts
     """
-    conf = SparkConf().setMaster(SPARK_MASTER) \
-                      .setAppName(SPARK_APP_NAME) \
-                      .set("spark.executor.memory", SPARK_EXECUTOR_MEMORY)
-    spark_context = SparkContext(conf=conf)
-
     # The training file with all the rating is loaded as a spark Resilient 
     # Distributed Dataset (RDD), and the parse_rating method is applied to
     # each line that has been read from the file. RDD is a fault-tolerant 
     # collection of elements that can be operated on in parallel.
-    ratings = spark_context.textFile(training_data_file) \
-                           .filter(lambda x: x and len(x.split('::')) == 4) \
-                           .map(parse_rating)
+    with spark_manager() as context:
+        ratings = context.textFile(training_data_file) \
+                         .filter(lambda x: x and len(x.split('::')) == 4) \
+                         .map(parse_rating)
 
-    numRatings = ratings.count()
+        numRatings = ratings.count()
 
-    numUsers = ratings.values() \
-                      .map(lambda r: r[0]) \
-                      .distinct() \
-                      .count()
+        numUsers = ratings.values() \
+                          .map(lambda r: r[0]) \
+                          .distinct() \
+                          .count()
 
-    numMovies = ratings.values() \
-                       .map(lambda r: r[1]) \
-                       .distinct() \
-                       .count()
+        numMovies = ratings.values() \
+                           .map(lambda r: r[1]) \
+                           .distinct() \
+                           .count()
 
-    training = ratings.filter(lambda x: x[0] < 6) \
+        training = ratings.filter(lambda x: x[0] < 6) \
+                          .values() \
+                          .repartition(numPartitions) \
+                          .cache()
+
+        validation = ratings.filter(lambda x: x[0] >= 6 and x[0] < 8) \
+                            .values() \
+                            .repartition(numPartitions) \
+                            .cache()
+
+        test = ratings.filter(lambda x: x[0] >= 8) \
                       .values() \
-                      .repartition(numPartitions) \
                       .cache()
 
-    validation = ratings.filter(lambda x: x[0] >= 6 and x[0] < 8) \
-                        .values() \
-                        .repartition(numPartitions) \
-                        .cache()
+        numTraining = training.count()
+        numValidation = validation.count()
+        numTest = test.count()
 
-    test = ratings.filter(lambda x: x[0] >= 8) \
-                  .values() \
-                  .cache()
+        # We will test 18 combinations resulting from the cross product of 3 
+        # different ranks (6, 8, 12), 3 different lambdas (0.1, 1.0, 10.0), 
+        # and two different numbers of iterations (10, 20). We will use
+        # compute_rmse to compute the RMSE (Root Mean Squared Error) on the
+        # validation set for each model. The model with the smallest RMSE on the
+        # validation set becomes the one selected and its RMSE on the test set is
+        # used as the final metric.
+        bestValidationRmse = float("inf")
+        bestModel, bestRank, bestLambda, bestNumIter = None, 0, -1.0, -1
 
-    numTraining = training.count()
-    numValidation = validation.count()
-    numTest = test.count()
+        # Collaborative filtering is commonly used for recommender systems. These 
+        # techniques aim to fill in the missing entries of a user-item association
+        # matrix, in our case, the user-movie rating matrix. MLlib currently
+        # supports model-based collaborative filtering, in which users and products
+        # are described by a small set of latent factors that can be used to
+        # predict missing entries. In particular, we implement the alternating 
+        # least squares (ALS) algorithm to learn these latent factors.
+        for rank, lmbda, numIter in itertools.product(ranks, lambdas, numIters):
+            model = ALS.train(ratings=training,
+                              rank=rank,
+                              iterations=numIter,
+                              lambda_=lmbda)
 
-    # We will test 18 combinations resulting from the cross product of 3 
-    # different ranks (6, 8, 12), 3 different lambdas (0.1, 1.0, 10.0), 
-    # and two different numbers of iterations (10, 20). We will use
-    # compute_rmse to compute the RMSE (Root Mean Squared Error) on the
-    # validation set for each model. The model with the smallest RMSE on the
-    # validation set becomes the one selected and its RMSE on the test set is
-    # used as the final metric.
-    bestValidationRmse = float("inf")
-    bestModel, bestRank, bestLambda, bestNumIter = None, 0, -1.0, -1
+            validationRmse = compute_rmse(model, validation, numValidation)
 
-    # Collaborative filtering is commonly used for recommender systems. These 
-    # techniques aim to fill in the missing entries of a user-item association
-    # matrix, in our case, the user-movie rating matrix. MLlib currently
-    # supports model-based collaborative filtering, in which users and products
-    # are described by a small set of latent factors that can be used to
-    # predict missing entries. In particular, we implement the alternating 
-    # least squares (ALS) algorithm to learn these latent factors.
-    for rank, lmbda, numIter in itertools.product(ranks, lambdas, numIters):
-        model = ALS.train(ratings=training,
-                          rank=rank,
-                          iterations=numIter,
-                          lambda_=lmbda)
+            if validationRmse < bestValidationRmse:
+                bestModel, bestValidationRmse = model, validationRmse
+                bestRank, bestLambda, bestNumIter = rank, lmbda, numIter
 
-        validationRmse = compute_rmse(model, validation, numValidation)
-
-        if validationRmse < bestValidationRmse:
-            bestModel, bestValidationRmse = model, validationRmse
-            bestRank, bestLambda, bestNumIter = rank, lmbda, numIter
-
-    # Evaluate the best model on the test set
-    testRmse = compute_rmse(bestModel, test, numTest)
-
-    spark_context.stop()
+        # Evaluate the best model on the test set
+        testRmse = compute_rmse(bestModel, test, numTest)
 
     print
     print 'Ratings:     {:10,}'.format(numRatings)
@@ -252,18 +254,12 @@ def recommend(training_data_file, movies_meta_data, user_ratings):
         (0, 1270, user_ratings[4]), # Back to the Future (1985)
     )
 
-    # Recommend other films to the user based on their preferences
-    conf = SparkConf().\
-            setMaster("local").\
-            setAppName("movieRecommender").\
-            set("spark.executor.memory", "2g")
-    spark_context = SparkContext(conf=conf)
+    with spark_manager() as context:
+        my_ratings_rdd = context.parallelize(my_ratings, 1)
 
-    my_ratings_rdd = spark_context.parallelize(my_ratings, 1)
-
-    ratings = spark_context.textFile(training_data_file) \
-                           .filter(lambda x: x and len(x.split('::')) == 4) \
-                           .map(parse_rating)
+        ratings = context.textFile(training_data_file) \
+                         .filter(lambda x: x and len(x.split('::')) == 4) \
+                         .map(parse_rating)
 
     movies = {}
 
