@@ -9,6 +9,7 @@ Usage:
     ./recommend.py train <training_data_file> [--partitions=<n>]
                    [--ranks=<n>] [--lambdas=<n>] [--iterations=<n>]
     ./recommend.py recommend <training_data_file> <movies_meta_data>
+                   [--ratings=<n>]
     ./recommend.py metrics <training_data_file> <movies_meta_data>
     ./recommend.py (-h | --help)
 
@@ -18,6 +19,7 @@ Options:
     --ranks=<n>        Partition count [Default: 6,8,12]
     --lambdas=<n>      Partition count [Default: 0.1,1.0,10.0]
     --iterations=<n>   Partition count [Default: 10,20]
+    --ratings=<n>      Ratings for 5 popular films [Default: 5,4,5,5,5]
 
 Examples:
     bin/spark-submit --driver-memory 2g recommend.py train ratings.dat
@@ -233,18 +235,35 @@ def train(training_data_file, numPartitions, ranks, lambdas, numIters):
     print '    RMSE on test set: {:10,.6f}'.format(testRmse)
 
 
-def recommend(training_data_file, movies_meta_data):
+def recommend(training_data_file, movies_meta_data, user_ratings):
     """
     Print metrics for the ratings database
     
     :param str training_data_file: file location of ratings.dat
     :param str movies_meta_data: file location of movies.dat
+    :param list user_ratings: list of floats of ratings for 5 popular films
     """
+    # Collect the users ratings of 5 popular films
+    my_ratings = (
+        (0, 2858, user_ratings[0]), # American Beauty (1999)
+        (0, 480,  user_ratings[1]), # Jurassic Park (1993)
+        (0, 589,  user_ratings[2]), # Terminator 2: Judgement Day (1991)
+        (0, 2571, user_ratings[3]), # Matrix, The (1999)
+        (0, 1270, user_ratings[4]), # Back to the Future (1985)
+    )
+
+    # Recommend other films to the user based on their preferences
     conf = SparkConf().\
             setMaster("local").\
             setAppName("movieRecommender").\
             set("spark.executor.memory", "2g")
     spark_context = SparkContext(conf=conf)
+
+    my_ratings_rdd = spark_context.parallelize(my_ratings, 1)
+
+    ratings = spark_context.textFile(training_data_file) \
+                           .filter(lambda x: x and len(x.split('::')) == 4) \
+                           .map(parse_rating)
 
     movies = {}
 
@@ -253,54 +272,6 @@ def recommend(training_data_file, movies_meta_data):
                   for line in open_file
                   if len(line.split('::')) == 3}
 
-    # The training file with all the rating is loaded as a spark Resilient 
-    # Distributed Dataset (RDD), and the parse_rating method is applied to
-    # each line that has been read from the file. RDD is a fault-tolerant 
-    # collection of elements that can be operated on in parallel.
-    ratings = spark_context.textFile(training_data_file) \
-                           .filter(lambda x: x and len(x.split('::')) == 4) \
-                           .map(parse_rating)
-
-    my_ratings = [
-        # User ID 0, Movie ID, Rating
-        (0,          2858,     5.0), # American Beauty (1999)
-        (0,          480,      4.0), # Jurassic Park (1993)
-        (0,          589,      5.0), # Terminator 2: Judgement Day (1991)
-        (0,          2571,     5.0), # Matrix, The (1999)
-        (0,          1270,     3.0), # Back to the Future (1985)
-    ]
-
-    my_ratings_rdd = spark_context.parallelize(my_ratings, 1)
-
-    # .union(my_ratings_rdd) after filter
-
-    # Exclude films I've rated from the recommended list
-    my_rated_films = set([rating[1]
-                          for rating in my_ratings])
-
-    # candidates = spark_context \
-    #                 .parallelize([rating
-    #                               for rating in ratings.values()
-    #                               if rating[1][1] not in my_rated_films]) \
-    #                 .repartition(numPartitions) \
-    #                 .cache()
-
-    # predictions = bestModel.predictAll(candidates.map(lambda x: (0, x))) \
-    #                        .collect()
-
-    # recommendations = sorted(predictions, key=lambda x: x[2], reverse=True)[:50]
-
-    # print
-    # print 'Recommendations:'
-    # from pprint import pprint
-    # print pprint(recommendations)
-
-    # for index in xrange(len(recommendations)):
-    #     movie_id = recommendations[index][1]
-    #     factor = recommendations[index][2]
-    #     print movies[movie_id] if movie_id in movies else movie_id, \
-    #           '{:10,.6f}'.format(factor)
-    
 
 def main(argv):
     """
@@ -324,8 +295,11 @@ def main(argv):
                 opt['<movies_meta_data>'])
 
     if opt['recommend']:
+        ratings = [float(_rating) for _rating in opt['--ratings'].split(',')]
+
         recommend(opt['<training_data_file>'],
-                  opt['<movies_meta_data>'])
+                  opt['<movies_meta_data>'],
+                  ratings)
 
 
 if __name__ == "__main__":
