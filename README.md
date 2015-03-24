@@ -5,19 +5,19 @@ On Ubuntu 14.04.2:
 ```bash
 sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
-sudo apt-get install -yq oracle-java7-installer scala git
+sudo apt-get install -yq oracle-java7-installer scala git python-virtualenv python-dev
 ```
 
 ```bash
 curl -O http://apache.cs.utah.edu/spark/spark-1.3.0/spark-1.3.0.tgz
 tar xvf spark-1.3.0.tgz
 cd spark-1.3.0/
-build/sbt assembly # This took about 30 minutes on my machine 19:48
+build/sbt assembly
 ```
 
 ```bash
-virtualenv spark
-source spark/bin/activate
+virtualenv spark_venv
+source spark_venv/bin/activate
 git clone https://github.com/marklit/recommend.git
 cd recommend
 pip install -r requirements.txt
