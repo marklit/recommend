@@ -6,21 +6,25 @@ sudo add-apt-repository ppa:webupd8team/java
 sudo apt-get update
 sudo apt-get install -yq oracle-java7-installer
 sudo apt-get install -yq scala default-jdk
-java -version
-javac -version
+java -version  # 1.7.0_75
+javac -version # 1.7.0_75
+```
 
+```bash
 wget http://apache.cs.utah.edu/spark/spark-1.3.0/spark-1.3.0.tgz
 tar xvf spark-1.3.0.tgz
 cd spark-1.3.0/
 build/sbt assembly # This takes around 30 minutes...
+```
 
+```bash
 virtualenv spark
 source spark/bin/activate
 git clone https://github.com/marklit/recommend.git .
 pip install -r requirements.txt
 ```
 
-# Film ratings data
+## Film ratings data
 
 ```bash
 curl -O http://files.grouplens.org/papers/ml-1m.zip
