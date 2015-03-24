@@ -103,19 +103,20 @@ Message in a Bottle (1999)
 
 ```bash
 $ bin/spark-submit recommend.py recommend ratings.dat movies.dat \
-    --rank=30 --lambda=0.1 --iteration=30
+    --rank=15 --lambda=0.33 --iteration=3
 ```
 
 ```
-New Jersey Drive (1995)
-I'll Be Home For Christmas (1998)
-His Girl Friday (1940)
-Breakfast at Tiffany's (1961)
-Halloween 5: The Revenge of Michael Myers (1989)
-Just the Ticket (1999)
 Goya in Bordeaux (Goya en Bodeos) (1999)
-For the Moment (1994)
-Bob Roberts (1992)
-Message in a Bottle (1999)
+Slums of Beverly Hills, The (1998)
+New Jersey Drive (1995)
+Bottle Rocket (1996)
+I'll Be Home For Christmas (1998)
+Big Daddy (1999)
+Kurt & Courtney (1998)
+Kika (1993)
+Omega Man, The (1971)
+Boogie Nights (1997)
+...
 ...
 ```
